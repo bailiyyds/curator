@@ -8,8 +8,7 @@ from pathlib import Path
 from curator.core.config import Config
 from curator.models import FileEntry, Inventory, SkippedItem
 from curator.safety.bincheck import is_binary
-
-PROTECTED = {".git", "node_modules", ".venv", "venv", "__pycache__", ".curator"}
+from curator.safety.paths import PROTECTED
 
 
 def scan(root: Path, config: Config | None = None) -> Inventory:

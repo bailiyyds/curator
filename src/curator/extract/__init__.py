@@ -9,7 +9,6 @@ from pdfminer.psparser import PSEOF
 from pdfplumber.utils.exceptions import PdfminerException
 
 from curator.core.config import Config
-from curator.core.scan import PROTECTED
 from curator.extract.code import extract_code
 from curator.extract.detect import detect_kind
 from curator.extract.md import extract_markdown
@@ -17,6 +16,7 @@ from curator.extract.pdf import extract_pdf
 from curator.extract.text import decode, extract_text
 from curator.models.document import ExtractionReport, ExtractionResult
 from curator.safety.bincheck import is_binary
+from curator.safety.paths import PROTECTED
 
 
 def extract_file(root: Path, relative: str, max_size: int = 50 * 1024 * 1024) -> ExtractionResult:
