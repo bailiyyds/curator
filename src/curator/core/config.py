@@ -14,6 +14,7 @@ class Config(BaseModel):
     follow_symlinks: bool = False
     max_size: int = Field(default=50 * 1024 * 1024, ge=1)
     max_files: int = Field(default=100000, ge=1)
+    max_topic_documents: int = Field(default=1024, ge=1)
     max_depth: int = Field(default=100, ge=0)
     include: list[str] = Field(default_factory=list)
     exclude: list[str] = Field(default_factory=list)

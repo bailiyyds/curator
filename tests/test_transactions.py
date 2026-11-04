@@ -101,7 +101,7 @@ def test_invalid_plan_no_writes(tmp_path: Path) -> None:
     change = plan.changes[0]
     for updates in (
         {"dst": "../outside.md"},
-        {"op": "move"},
+        {"op": "archive"},
         {"pre_sha256": "bad"},
         {"dst": change.src},
         {"dst": "other/target.md"},

@@ -1,6 +1,6 @@
 # curator
 
-本地文档与代码策展 CLI，按阶段开发。当前完成阶段一至三；阶段四至八尚未实现，不能视为完整产品。
+本地文档与代码策展 CLI，按阶段开发。当前完成阶段一至四；阶段五至八尚未实现，不能视为完整产品。
 
 ## 开发
 
@@ -33,7 +33,9 @@ uv build
 
 阶段三新增重命名提案、执行、日志与撤销；56 项测试通过、1 项跳过，总覆盖率 91%。详见 [阶段二记录](STAGE-2.md) 和 [阶段三记录](STAGE-3.md)。
 
-完整跨平台安全验证及阶段四至八仍待完成。
+阶段四：按类型、UTC 日期与本地主题整理已完成；67 项测试通过、1 项跳过，覆盖率 91%。详见 [阶段四记录](STAGE-4.md)。
+
+完整跨平台安全验证及阶段五至八仍待完成。
 
 
 ## 重命名与恢复
@@ -53,3 +55,18 @@ uv run curator undo examples/rename --last 1 --apply --yes
 输出文件不覆盖既有文件；撤销导出会将其归档到 .curator/trash/。
 JSON 自动化调用请配合 --json --yes。日志记录 prepare 和 commit，并逐条 flush/fsync。
 Linux/macOS 系统调用分支尚未实机验证；当前强制终止恢复证据来自 Windows。
+
+
+## 按类型、日期、主题整理
+
+```sh
+uv run curator organize examples/organize --by type
+uv run curator organize examples/organize --by date
+uv run curator organize examples/organize --by topic --json
+```
+
+默认只读。确认预览后加 --apply；--into 指定根目录内的输出目录，默认 organized。
+同名文件进入 _conflicts/，输出目录内的文件不会被再次整理。
+主题聚类不联网；最多 12 个标签，超出分析预算的文件归入“其他”并报告。
+用户原有空目录只生成独立清理提案，不随移动执行。
+使用 `plan --operation organize` 可只导出整理计划，随后再用 apply 执行。

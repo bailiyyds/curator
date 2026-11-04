@@ -20,6 +20,14 @@ class Change(BaseModel):
     pre_sha256: str
 
 
+class CleanupProposal(BaseModel):
+    """An empty-directory proposal that is never part of apply operations."""
+
+    path: str
+    reason: str
+    requires_confirmation: Literal[True] = True
+
+
 class Plan(BaseModel):
     """A complete proposal that can be inspected without mutation."""
 
@@ -29,6 +37,7 @@ class Plan(BaseModel):
     created_at: datetime
     changes: list[Change]
     warnings: list[str]
+    cleanup: list[CleanupProposal] = Field(default_factory=list)
 
 
 class JournalEntry(BaseModel):
@@ -44,6 +53,7 @@ class JournalEntry(BaseModel):
     post_sha256: str | None = None
     phase: Literal["prepare", "commit"] = "commit"
     pre_sha256: str | None = None
+    file_id: str | None = None
 
 
 class OperationReport(BaseModel):

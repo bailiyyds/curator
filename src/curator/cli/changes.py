@@ -1,5 +1,6 @@
 """Preview and confirmation adapters for stage-three operations."""
 
+from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
@@ -9,10 +10,26 @@ from rich.table import Table
 
 from curator.core.apply import apply_plan, write_artifact
 from curator.core.config import load_config
+from curator.core.organize import organize_plan
 from curator.core.plan import rename_plan
 from curator.core.undo import latest_journals, undo_journal
 from curator.models.changes import OperationReport, Plan
 from curator.safety.paths import SafetyError
+
+
+class OrganizationStrategy(str, Enum):
+    """Validated organization choices exposed by the CLI."""
+
+    TYPE = "type"
+    DATE = "date"
+    TOPIC = "topic"
+
+
+class PlanOperation(str, Enum):
+    """Available pure proposal generators."""
+
+    RENAME = "rename"
+    ORGANIZE = "organize"
 
 
 def register(app: typer.Typer, console: Console) -> None:
@@ -30,6 +47,10 @@ def register(app: typer.Typer, console: Console) -> None:
                 change.src, change.dst, change.reason, f"{change.confidence:.0%}", change.risk
             )
         console.print(table)
+        if plan.cleanup:
+            console.print("Separate cleanup proposals (not executed):")
+            for item in plan.cleanup:
+                console.print(f"{item.path}: {item.reason}")
         for warning in plan.warnings:
             console.print(warning, style="yellow")
 
@@ -99,18 +120,57 @@ def register(app: typer.Typer, console: Console) -> None:
         except (OSError, ValueError) as error:
             fail(error, json)
 
+    @app.command("organize")
+    def organize_command(
+        path: Path,
+        by: OrganizationStrategy = OrganizationStrategy.TYPE,
+        into: str = "organized",
+        apply: bool = typer.Option(False, "--apply/--dry-run"),
+        yes: bool = False,
+        json: bool = False,
+        output: Annotated[str | None, typer.Option("--output", "-o")] = None,
+    ) -> None:
+        """Preview file organization by type, date or local text topics."""
+        try:
+            plan = organize_plan(path, by=by.value, into=into, config=load_config(path.resolve()))
+            if not json:
+                preview(plan)
+            if not apply:
+                if json:
+                    console.print_json(data={"plan": plan.model_dump(mode="json"), "dry_run": True})
+                return
+            confirm(yes)
+            if output:
+                exported = write_artifact(
+                    Path(plan.root), output, plan.model_dump_json(indent=2).encode(), apply=True
+                )
+                if any(e.result != "ok" for e in exported.entries):
+                    outcome(exported, json)
+                    return
+            outcome(apply_plan(plan, apply=True), json)
+        except (OSError, ValueError) as error:
+            fail(error, json)
+
     @app.command("plan")
     def plan_command(
         path: Path,
         output: Annotated[str, typer.Option("--output", "-o")] = "plan.json",
         template: str = "{slug}",
+        operation: PlanOperation = PlanOperation.RENAME,
+        by: OrganizationStrategy = OrganizationStrategy.TYPE,
+        into: str = "organized",
         apply: bool = typer.Option(False, "--apply/--dry-run"),
         yes: bool = False,
         json: bool = False,
     ) -> None:
-        """Preview a rename plan; --apply exports only the plan, without renaming."""
+        """Preview rename or organization plans; --apply exports without moving files."""
         try:
-            plan = rename_plan(path, template=template, config=load_config(path.resolve()))
+            if operation == PlanOperation.ORGANIZE:
+                plan = organize_plan(
+                    path, by=by.value, into=into, config=load_config(path.resolve())
+                )
+            else:
+                plan = rename_plan(path, template=template, config=load_config(path.resolve()))
             if not json:
                 preview(plan)
                 console.print(f"Plan export: {output}; apply={apply}")

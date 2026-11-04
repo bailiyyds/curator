@@ -1,4 +1,4 @@
-"""Explicit, locked, journaled execution of approved rename plans."""
+"""Explicit, locked, journaled execution of approved file plans."""
 
 import hashlib
 import re
@@ -20,27 +20,51 @@ def validate_plan(plan: Plan) -> Path:
     targets: set[str] = set()
     ids: set[str] = set()
     for change in plan.changes:
-        if change.op != "rename":
-            raise SafetyError("Only rename is supported by this stage")
-        src, dst = safe_path(root, change.src), safe_path(root, change.dst)
-        if src.parent != dst.parent:
-            raise SafetyError("Rename must stay in the same directory")
-        if not re.fullmatch(r"[a-f0-9]{64}", change.pre_sha256):
+        if change.op not in {"rename", "move", "mkdir"}:
+            raise SafetyError("Unsupported operation")
+        dst = safe_path(root, change.dst)
+        if change.op == "mkdir":
+            if change.src or change.pre_sha256:
+                raise SafetyError("mkdir must have an empty source and checksum")
+        else:
+            src = safe_path(root, change.src)
+            if change.op == "rename" and src.parent != dst.parent:
+                raise SafetyError("Rename must stay in the same directory")
+        if change.op != "mkdir" and not re.fullmatch(r"[a-f0-9]{64}", change.pre_sha256):
             raise SafetyError("Invalid pre-change SHA-256")
-        if change.id in ids or change.src.casefold() in sources or change.dst.casefold() in targets:
+        if (
+            change.id in ids
+            or (change.src and change.src.casefold() in sources)
+            or change.dst.casefold() in targets
+        ):
             raise SafetyError("Duplicate change ID, source or target")
-        sources.add(change.src.casefold())
+        if change.src:
+            sources.add(change.src.casefold())
         targets.add(change.dst.casefold())
         ids.add(change.id)
     if sources & targets:
         raise SafetyError("Rename chains, cycles and case-only renames are forbidden")
+    planned_dirs: set[Path] = set()
+    file_targets = {safe_path(root, c.dst) for c in plan.changes if c.op != "mkdir"}
+    for change in plan.changes:
+        dst = safe_path(root, change.dst)
+        if dst.parent != root and not dst.parent.is_dir() and dst.parent not in planned_dirs:
+            raise SafetyError(
+                "Every destination parent must exist or be created earlier in the plan"
+            )
+        if any(parent in file_targets for parent in dst.parents):
+            raise SafetyError("A file destination cannot also be a parent directory")
+        if change.op == "mkdir":
+            if collision(dst) and not dst.is_dir():
+                raise SafetyError("Directory destination conflicts with an existing path")
+            planned_dirs.add(dst)
     return root
 
 
 def entry_for(
     change: Change, *, phase: str = "commit", result: str = "ok", error: str | None = None
 ) -> JournalEntry:
-    """Construct a schema-validated event for a rename."""
+    """Construct a schema-validated event for a proposed operation."""
     return JournalEntry.model_validate(
         {
             "ts": datetime.now(UTC),
@@ -60,7 +84,7 @@ def entry_for(
 def apply_plan(
     plan: Plan, *, apply: bool = False, allow_high_risk: bool = False
 ) -> OperationReport:
-    """Preview by default; perform validated renames only with explicit opt-in."""
+    """Preview by default; perform validated operations only with explicit opt-in."""
     root = validate_plan(plan)
     report = OperationReport(dry_run=not apply, warnings=plan.warnings.copy())
     if not apply:
@@ -68,12 +92,41 @@ def apply_plan(
     with root_lock(root), Journal(root, plan) as journal:
         report.journal = str(journal.path)
         for change in plan.changes:
+            if change.op == "mkdir":
+                dst = safe_path(root, change.dst)
+                if collision(dst):
+                    event = entry_for(
+                        change,
+                        result="skipped",
+                        error="Directory already exists; not owned by this transaction",
+                    )
+                elif change.risk == "high" and not allow_high_risk:
+                    event = entry_for(change, result="skipped", error="High-risk directory skipped")
+                else:
+                    journal.append(entry_for(change, phase="prepare"))
+                    try:
+                        dst = safe_path(root, change.dst)
+                        dst.mkdir(exist_ok=False)
+                        identity = dst.stat()
+                        from curator.safety.paths import sync_directory
+
+                        sync_directory(dst.parent)
+                        event = entry_for(change).model_copy(
+                            update={"file_id": f"{identity.st_dev}:{identity.st_ino}"}
+                        )
+                    except (OSError, SafetyError) as error:
+                        event = entry_for(change, result="failed", error=str(error))
+                journal.append(event)
+                report.entries.append(event)
+                continue
             src, dst = safe_path(root, change.src), safe_path(root, change.dst)
             reason: str | None = None
             if change.risk == "high" and not allow_high_risk:
                 reason = "High-risk change skipped; explicit --allow-high-risk is required"
             elif not src.is_file():
                 reason = "Source is missing or is not a regular file"
+            elif not dst.parent.is_dir():
+                reason = "Destination parent is unavailable"
             elif collision(dst):
                 reason = "Destination exists; overwriting is forbidden"
             elif sha256(src) != change.pre_sha256:

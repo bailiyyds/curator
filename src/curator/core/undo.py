@@ -85,8 +85,66 @@ def _reverse(root: Path, path: Path, report: OperationReport, journal: Journal |
             if event.change_id in intents:
                 raise SafetyError("Duplicate intent in journal")
             intents[event.change_id] = event
+    committed_dirs = {
+        e.change_id: e.file_id
+        for e in events
+        if e.op == "mkdir" and e.phase == "commit" and e.result == "ok"
+    }
     for intent in reversed(list(intents.values())):
-        if intent.op == "rename" and intent.dst:
+        if intent.op == "mkdir" and intent.dst:
+            directory = safe_path(root, intent.dst)
+            event = JournalEntry(
+                ts=datetime.now(UTC),
+                change_id=intent.change_id,
+                op="undo_mkdir",
+                src=intent.dst,
+                dst=None,
+                result="skipped",
+            )
+            if not directory.exists():
+                event.error = "Directory is already absent"
+            elif intent.change_id not in committed_dirs:
+                event.error = (
+                    "Unconfirmed directory ownership after interruption; retained for review"
+                )
+            elif (
+                committed_dirs[intent.change_id]
+                != f"{directory.stat().st_dev}:{directory.stat().st_ino}"
+            ):
+                event.result, event.error = (
+                    "failed",
+                    "Directory identity changed; retained without modification",
+                )
+            elif not directory.is_dir() or any(directory.iterdir()):
+                event.result, event.error = (
+                    "failed",
+                    "Directory is not empty; retained without modification",
+                )
+            elif journal:
+                target_rel = f".curator/trash/{uuid4().hex}/{directory.name}"
+                target = safe_path(root, target_rel, internal=True)
+                event.dst, event.result = target_rel, "ok"
+                journal.append(event.model_copy(update={"phase": "prepare"}))
+                try:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    directory = safe_path(root, intent.dst)
+                    if (
+                        committed_dirs[intent.change_id]
+                        != f"{directory.stat().st_dev}:{directory.stat().st_ino}"
+                    ):
+                        raise SafetyError("Directory identity changed before undo")
+                    if any(directory.iterdir()):
+                        raise SafetyError("Directory became nonempty before undo")
+                    move_no_replace(directory, target)
+                except (OSError, SafetyError) as error:
+                    event.result, event.error = "failed", str(error)
+            else:
+                event.result = "ok"
+            if journal:
+                journal.append(event)
+            report.entries.append(event)
+            continue
+        if intent.op in {"rename", "move"} and intent.dst:
             src = safe_path(root, intent.dst)
             dst = safe_path(root, intent.src)
             expected = intent.pre_sha256
