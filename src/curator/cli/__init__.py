@@ -139,3 +139,7 @@ def extract_command(path: Path, json: bool = False) -> None:
 from curator.cli.changes import register
 
 register(app, console)
+
+from curator.cli.review import register_review
+
+register_review(app, console)

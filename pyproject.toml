@@ -35,4 +35,5 @@ strict = true
 pythonpath = ["src"]
 
 [tool.ruff]
+extend-exclude = ["examples/review"]
 line-length = 100

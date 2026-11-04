@@ -89,7 +89,7 @@ def scan(root: Path, config: Config | None = None) -> Inventory:
                     item.kind = "binary"
                 elif ext in {".md", ".markdown"}:
                     item.kind = "markdown"
-                elif ext in {".py", ".ts", ".js", ".go", ".rs", ".java"}:
+                elif ext in {".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".java"}:
                     item.kind, item.language = "code", ext[1:]
                 elif ext in {".png", ".jpg", ".jpeg", ".gif"}:
                     item.kind = "image"

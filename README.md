@@ -1,6 +1,6 @@
 # curator
 
-本地文档与代码策展 CLI，按阶段开发。当前完成阶段一至四；阶段五至八尚未实现，不能视为完整产品。
+本地文档与代码策展 CLI，按阶段开发。当前完成阶段一至五；阶段六至八尚未实现，不能视为完整产品。
 
 ## 开发
 
@@ -35,7 +35,9 @@ uv build
 
 阶段四：按类型、UTC 日期与本地主题整理已完成；67 项测试通过、1 项跳过，覆盖率 91%。详见 [阶段四记录](STAGE-4.md)。
 
-完整跨平台安全验证及阶段五至八仍待完成。
+阶段五：静态代码审查已完成，104 项测试通过、1 项跳过，覆盖率 92%。详见 [阶段五记录](STAGE-5.md)。
+
+完整跨平台安全验证及阶段六至八仍待完成。
 
 
 ## 重命名与恢复
@@ -70,3 +72,19 @@ uv run curator organize examples/organize --by topic --json
 主题聚类不联网；最多 12 个标签，超出分析预算的文件归入“其他”并报告。
 用户原有空目录只生成独立清理提案，不随移动执行。
 使用 `plan --operation organize` 可只导出整理计划，随后再用 apply 执行。
+
+
+## 静态代码审查
+
+```sh
+uv run curator review examples/review --no-llm --severity info+
+uv run curator review examples/review --lang py --format json
+uv run curator review examples/review --format md
+```
+
+examples/review 是故意保留缺陷的审查输入，只用 CLI 读取，不要执行这些文件。
+Python 支持异常、默认参数、导入、None、资源、除零与格式化规则；其他语言实现通用规则。
+结果包含路径、行列、原始证据与建议，同一行合并并保留最高严重度。
+默认 warning+；info+ 还显示注释中的 TODO/FIXME/XXX。规则结果需要人工评估，不保证任意仓库零误报。
+`-o findings.json --format json --apply --yes` 可日志化导出报告，默认不写入、不修改源代码。
+当前 --llm 只提示降级；provider 与模型复核在阶段六实现。
