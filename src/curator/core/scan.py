@@ -1,13 +1,15 @@
 """Bounded, read-only filesystem inventory."""
+
 import hashlib
-import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from fnmatch import fnmatch
 from pathlib import Path
+
 from curator.core.config import Config
 from curator.models import FileEntry, Inventory, SkippedItem
 
 PROTECTED = {".git", "node_modules", ".venv", "venv", "__pycache__", ".curator"}
+
 
 def scan(root: Path, config: Config | None = None) -> Inventory:
     """Scan without following links or executing inspected content.
@@ -18,10 +20,14 @@ def scan(root: Path, config: Config | None = None) -> Inventory:
     if not root.is_dir():
         raise ValueError("Root must be a directory")
     config = config or Config()
+    if config.follow_symlinks:
+        raise ValueError("Following links is disabled for safe inventory scans")
     files: list[FileEntry] = []
     skipped: list[SkippedItem] = []
+
     def skip(path: Path, reason: str) -> None:
         skipped.append(SkippedItem(path=path.relative_to(root).as_posix(), reason=reason))
+
     stack = [(root, 0)]
     while stack:
         directory, depth = stack.pop()
@@ -65,8 +71,13 @@ def scan(root: Path, config: Config | None = None) -> Inventory:
                 if (stat.st_size, stat.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
                     skip(path, "File changed during scan")
                     continue
-                item = FileEntry(path=rel, size=stat.st_size, mtime=stat.st_mtime,
-                                 sha256=digest.hexdigest(), kind="unknown")
+                item = FileEntry(
+                    path=rel,
+                    size=stat.st_size,
+                    mtime=stat.st_mtime,
+                    sha256=digest.hexdigest(),
+                    kind="unknown",
+                )
                 ext = path.suffix.lower()
                 if ext == ".pdf":
                     item.kind = "pdf"
@@ -82,9 +93,14 @@ def scan(root: Path, config: Config | None = None) -> Inventory:
                     item.kind = "text"
                 files.append(item)
             except OSError as error:
-                files.append(FileEntry(path=rel, size=0, mtime=0, sha256="",
-                                       kind="unknown", error=str(error)))
-    return Inventory(root=str(root), created_at=datetime.fromtimestamp(
-        max((f.mtime for f in files), default=0), timezone.utc),
+                files.append(
+                    FileEntry(
+                        path=rel, size=0, mtime=0, sha256="", kind="unknown", error=str(error)
+                    )
+                )
+    return Inventory(
+        root=str(root),
+        created_at=datetime.fromtimestamp(max((f.mtime for f in files), default=0), UTC),
         files=sorted(files, key=lambda f: f.path),
-        skipped=sorted(skipped, key=lambda s: s.path))
+        skipped=sorted(skipped, key=lambda s: s.path),
+    )
