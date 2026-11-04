@@ -71,3 +71,35 @@ def scan(
         else:
             console.print(str(error), style="red")
         raise typer.Exit(1) from error
+
+
+@app.command("extract")
+def extract_command(path: Path, json: bool = False) -> None:
+    """Extract readable documents to the terminal without writing files."""
+    from curator.extract import extract_directory
+
+    try:
+        report = extract_directory(path, load_config(path.resolve()))
+        if json:
+            console.print_json(report.model_dump_json())
+        else:
+            good = sum(r.document is not None for r in report.results)
+            console.print(
+                f"Documents: {good}; errors: {len(report.results) - good}; "
+                f"skipped: {len(report.skipped)}"
+            )
+            console.print(f"{report.scanned_pdfs} 个 PDF 含无文本层页面，需要 OCR")
+            for item in report.results:
+                console.print(f"{item.path}: {item.error or 'ok'}")
+                for warning in item.warnings:
+                    console.print(warning, style="yellow")
+            for skipped in report.skipped:
+                console.print(f"{skipped.path}: {skipped.reason}")
+        if any(item.error for item in report.results):
+            raise typer.Exit(4)
+    except (OSError, ValueError) as error:
+        if json:
+            console.print_json(data={"error": str(error)})
+        else:
+            console.print(str(error), style="red")
+        raise typer.Exit(1) from error

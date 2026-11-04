@@ -7,6 +7,7 @@ from pathlib import Path
 
 from curator.core.config import Config
 from curator.models import FileEntry, Inventory, SkippedItem
+from curator.safety.bincheck import is_binary
 
 PROTECTED = {".git", "node_modules", ".venv", "venv", "__pycache__", ".curator"}
 
@@ -42,7 +43,9 @@ def scan(root: Path, config: Config | None = None) -> Inventory:
                 if path.is_symlink() or path.is_junction():
                     skip(path, "Symbolic links and junctions are not followed")
                     continue
-                if path.name in PROTECTED or any(fnmatch(rel, g) for g in config.exclude):
+                if path.name.casefold() in PROTECTED or any(
+                    fnmatch(rel, g) for g in config.exclude
+                ):
                     skip(path, "Protected or excluded path")
                     continue
                 if path.is_dir():
@@ -81,7 +84,9 @@ def scan(root: Path, config: Config | None = None) -> Inventory:
                 ext = path.suffix.lower()
                 if ext == ".pdf":
                     item.kind = "pdf"
-                elif b"\x00" in head:
+                elif head.startswith((b"\x89PNG", b"\xff\xd8\xff", b"GIF87a", b"GIF89a")):
+                    item.kind = "image"
+                elif is_binary(head):
                     item.kind = "binary"
                 elif ext in {".md", ".markdown"}:
                     item.kind = "markdown"

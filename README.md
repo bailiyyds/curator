@@ -1,6 +1,6 @@
 # curator
 
-本地文档与代码策展 CLI，按阶段开发。当前为阶段一检查版；阶段二至八尚未实现，不能视为完整产品。
+本地文档与代码策展 CLI，按阶段开发。当前完成阶段一、二；阶段三至八尚未实现，不能视为完整产品。
 
 ## 开发
 
@@ -9,6 +9,8 @@
 ```sh
 uv sync
 uv run curator scan examples --json
+uv run curator extract examples
+uv run curator extract examples --json
 uv run pytest --cov=curator
 uv run mypy --strict src
 uv run ruff check .
@@ -25,4 +27,8 @@ uv build
 
 `scan -o` 与其他文件输出将在统一 journal 写入机制完成后接入，当前结果仅输出到终端。
 
-完整安全对抗、跨平台链接测试、阶段二至八仍待完成；uv build 已通过。
+阶段二：PDF/Markdown/纯文本与六种语言 AST 抽取已实现；30 项测试通过、1 项跳过，总覆盖率 95%。
+
+`extract` 只读取文件并输出到终端；PDF 无文本层页面会标记需要 OCR。错误文件会报告原因并返回退出码 4。
+
+完整安全对抗、跨平台链接测试、阶段三至八仍待完成。详见 [阶段二记录](STAGE-2.md)。
