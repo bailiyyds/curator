@@ -1,0 +1,16 @@
+# Copy the [llm] table into your project .curator.toml if desired.
+# Keep API keys in environment variables, never commit real credentials.
+[llm]
+base_url = "http://127.0.0.1:11434/v1"
+model = "your-installed-model"
+timeout = 60
+retries = 3
+input_tokens = 2000
+max_tokens = 512
+temperature = 0.0
+concurrency = 4
+max_tasks = 64
+token_parameter = "max_tokens"
+json_mode = true
+use_cache = true
+write_cache = false

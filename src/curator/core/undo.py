@@ -34,6 +34,8 @@ def latest_journals(root: Path, last: int = 1) -> list[Path]:
     for path in directory.glob("*.jsonl"):
         valid = journal_path(root, path)
         header, events, _ = read_journal(valid)
+        if header.get("kind") == "cache":
+            continue
         if header.get("undo_of") and any(
             e.op == "undo_complete" and e.result == "ok" and e.phase == "commit" for e in events
         ):
@@ -50,6 +52,8 @@ def undo_journal(path: Path, *, apply: bool = False) -> OperationReport:
     if not root.is_absolute() or root.resolve() != root or not root.is_dir():
         raise SafetyError("Journal root is invalid")
     path = journal_path(root, path)
+    if header.get("kind") == "cache":
+        raise SafetyError("Cache metadata is not a user-file undo transaction")
     if header.get("undo_of"):
         raise SafetyError("Undo journals cannot themselves be undone")
     report = OperationReport(dry_run=not apply)

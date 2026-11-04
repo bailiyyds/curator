@@ -1,5 +1,6 @@
 """Preview and confirmation adapters for stage-three operations."""
 
+import asyncio
 from enum import Enum
 from pathlib import Path
 from typing import Annotated
@@ -85,17 +86,39 @@ def register(app: typer.Typer, console: Console) -> None:
         yes: bool = False,
         allow_high_risk: bool = False,
         json: bool = False,
+        no_cache: bool = typer.Option(False, "--no-cache"),
         output: Annotated[str | None, typer.Option("--output", "-o")] = None,
     ) -> None:
         """Preview renames; --apply requires confirmation unless --yes is supplied."""
         try:
+            config = load_config(path.resolve())
+            titles = None
+            title_warnings: list[str] = []
+            if source == "llm":
+                from curator.llm.namer import suggest_titles
+                from curator.llm.provider import Provider
+
+                provider = Provider(
+                    config.llm.model_copy(
+                        update={
+                            "write_cache": False,
+                            "use_cache": config.llm.use_cache and not no_cache,
+                        }
+                    ),
+                    path.resolve(),
+                )
+                titles, title_warnings = asyncio.run(
+                    suggest_titles(path.resolve(), provider, config)
+                )
             plan = rename_plan(
                 path,
                 template=template,
                 source=source,
                 threshold=threshold,
-                config=load_config(path.resolve()),
+                config=config,
+                llm_titles=titles,
             )
+            plan.warnings.extend(title_warnings)
             if not json:
                 preview(plan)
             if not apply:

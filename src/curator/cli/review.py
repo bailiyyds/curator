@@ -1,5 +1,6 @@
 """Review rendering, explicit artifact export and parameter validation."""
 
+import asyncio
 import logging
 import re
 from enum import Enum
@@ -12,6 +13,8 @@ from rich.console import Console
 from curator.analyze.code import review_directory
 from curator.core.apply import write_artifact
 from curator.core.config import load_config
+from curator.llm.provider import Provider
+from curator.llm.reviewer import review_findings
 from curator.models.findings import ReviewReport
 from curator.safety.paths import SafetyError
 
@@ -32,11 +35,15 @@ def render_text(report: ReviewReport) -> str:
     for finding in report.findings:
         lines.extend(
             [
-                f"{finding.path}:{finding.line}:{finding.col}: {finding.severity} [{finding.rule}] {finding.message}",
+                f"{finding.path}:{finding.line}:{finding.col}: {finding.severity} [{finding.rule}; source={finding.source}] {finding.message}",
                 f"  {finding.evidence}",
                 f"  Suggestion: {finding.suggestion}",
             ]
         )
+        if finding.llm_confirmed is not None:
+            lines.append(f"  LLM confirmed={finding.llm_confirmed}: {finding.llm_reason}")
+        if finding.patch:
+            lines.extend(["  Suggested patch (not applied):", finding.patch])
     lines.append(f"Markers: {report.marker_counts}")
     lines.extend(f"Skipped {s.path}: {s.reason}" for s in report.skipped)
     lines.extend(f"Warning: {w}" for w in report.warnings)
@@ -52,6 +59,9 @@ def render_markdown(report: ReviewReport) -> str:
         "",
     ]
     for finding in report.findings:
+        suggestion_fence = "`" * (
+            max([len(m.group()) for m in re.finditer(r"`+", finding.suggestion or "")] + [2]) + 1
+        )
         fence = "`" * (
             max([len(m.group()) for m in re.finditer(r"`+", finding.evidence)] + [2]) + 1
         )
@@ -59,7 +69,7 @@ def render_markdown(report: ReviewReport) -> str:
             [
                 f"## {finding.path}:{finding.line}:{finding.col}",
                 "",
-                f"{finding.severity} · {finding.rule}",
+                f"{finding.severity} · {finding.rule} · source={finding.source}",
                 "",
                 finding.message,
                 "",
@@ -67,10 +77,40 @@ def render_markdown(report: ReviewReport) -> str:
                 finding.evidence,
                 fence,
                 "",
-                f"Suggestion: {finding.suggestion}",
+                "Suggestion:",
+                suggestion_fence + "text",
+                finding.suggestion or "",
+                suggestion_fence,
                 "",
             ]
         )
+        if finding.llm_confirmed is not None:
+            reason = finding.llm_reason or ""
+            reason_fence = "`" * (
+                max([len(m.group()) for m in re.finditer(r"`+", reason)] + [2]) + 1
+            )
+            lines.extend(
+                [
+                    f"LLM confirmed: {finding.llm_confirmed}",
+                    reason_fence + "text",
+                    reason,
+                    reason_fence,
+                    "",
+                ]
+            )
+        if finding.patch:
+            patch_fence = "`" * (
+                max([len(m.group()) for m in re.finditer(r"`+", finding.patch)] + [2]) + 1
+            )
+            lines.extend(
+                [
+                    "Suggested patch (not applied):",
+                    patch_fence + "diff",
+                    finding.patch,
+                    patch_fence,
+                    "",
+                ]
+            )
     lines.extend(
         [
             "## Counts",
@@ -102,22 +142,64 @@ def register_review(app: typer.Typer, console: Console) -> None:
         output: Annotated[str | None, typer.Option("--output", "-o")] = None,
         apply: bool = typer.Option(False, "--apply/--dry-run"),
         yes: bool = False,
+        base_url: str | None = None,
+        model: str | None = None,
+        timeout: Annotated[float | None, typer.Option(min=0.001, max=600)] = None,
+        retries: Annotated[int | None, typer.Option(min=0, max=3)] = None,
+        input_tokens: Annotated[int | None, typer.Option(min=256, max=32000)] = None,
+        max_tokens: Annotated[int | None, typer.Option(min=1, max=8192)] = None,
+        concurrency: Annotated[int | None, typer.Option(min=1, max=32)] = None,
+        llm_max_tasks: Annotated[int | None, typer.Option(min=1, max=10000)] = None,
+        no_cache: bool = typer.Option(False, "--no-cache"),
+        write_cache: bool = False,
     ) -> None:
         """Review source files offline, without executing or rewriting inspected code."""
         try:
-            if apply and output is None:
+            if apply and output is None and not write_cache:
                 raise typer.BadParameter("--apply requires -o for report export")
+            if write_cache and (not llm or not apply or no_cache):
+                raise typer.BadParameter(
+                    "--write-cache requires --llm --apply and cannot combine with --no-cache"
+                )
+            overrides = {
+                key: value
+                for key, value in {
+                    "base_url": base_url,
+                    "model": model,
+                    "timeout": timeout,
+                    "retries": retries,
+                    "input_tokens": input_tokens,
+                    "max_tokens": max_tokens,
+                    "concurrency": concurrency,
+                    "max_tasks": llm_max_tasks,
+                }.items()
+                if value is not None
+            }
+            config = load_config(path.resolve(), {"llm": overrides})
+            confirmed_write = False
+            if write_cache:
+                if (
+                    not yes
+                    and typer.prompt("Type yes to write LLM response cache", default="no") != "yes"
+                ):
+                    raise typer.Exit(0)
+                confirmed_write = True
             report = review_directory(
                 path,
                 languages=lang,
                 rules=rules,
                 severity=severity,
-                config=load_config(path.resolve()),
+                config=config,
             )
             if llm:
-                report.warnings.append(
-                    "LLM review is not implemented until stage six; all rule findings are retained"
+                settings = config.llm.model_copy(
+                    update={
+                        "use_cache": config.llm.use_cache and not no_cache,
+                        "write_cache": write_cache and apply,
+                    }
                 )
+                provider = Provider(settings, Path(report.root))
+                report = asyncio.run(review_findings(report, provider, config))
             chosen = ReviewFormat.JSON if json else format
             payload = (
                 report.model_dump_json(indent=2)
@@ -128,7 +210,11 @@ def register_review(app: typer.Typer, console: Console) -> None:
             )
             exported = None
             if output and apply:
-                if not yes and typer.prompt("Type yes to export review", default="no") != "yes":
+                if (
+                    not confirmed_write
+                    and not yes
+                    and typer.prompt("Type yes to export review", default="no") != "yes"
+                ):
                     raise typer.Exit(0)
                 exported = write_artifact(
                     Path(report.root), output, payload.encode("utf-8"), apply=True

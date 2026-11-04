@@ -19,6 +19,7 @@ dependencies = [
     "tree-sitter-rust>=0.24,<0.25",
     "tree-sitter-java>=0.23,<0.24",
     "portalocker>=3,<4",
+    "httpx>=0.28,<0.29",
 ]
 [project.scripts]
 curator = "curator.cli:app"

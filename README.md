@@ -1,6 +1,6 @@
 # curator
 
-本地文档与代码策展 CLI，按阶段开发。当前完成阶段一至五；阶段六至八尚未实现，不能视为完整产品。
+本地文档与代码策展 CLI，按阶段开发。当前完成阶段一至六；阶段七至八尚未实现，不能视为完整产品。
 
 ## 开发
 
@@ -37,7 +37,9 @@ uv build
 
 阶段五：静态代码审查已完成，104 项测试通过、1 项跳过，覆盖率 92%。详见 [阶段五记录](STAGE-5.md)。
 
-完整跨平台安全验证及阶段六至八仍待完成。
+阶段六：兼容 HTTP provider、严格复核、缓存与标题建议已实现，126 项测试通过、1 项跳过，覆盖率约 92%。详见 [阶段六记录](STAGE-6.md)。
+
+完整跨平台安全验证及阶段七至八仍待完成。
 
 
 ## 重命名与恢复
@@ -87,4 +89,24 @@ Python 支持异常、默认参数、导入、None、资源、除零与格式化
 结果包含路径、行列、原始证据与建议，同一行合并并保留最高严重度。
 默认 warning+；info+ 还显示注释中的 TODO/FIXME/XXX。规则结果需要人工评估，不保证任意仓库零误报。
 `-o findings.json --format json --apply --yes` 可日志化导出报告，默认不写入、不修改源代码。
-当前 --llm 只提示降级；provider 与模型复核在阶段六实现。
+--llm 会调用显式配置的兼容服务；缺 key/model 或服务不可用时保留规则结果。
+
+
+## 可选 LLM
+
+环境默认值使用 CURATOR_LLM_BASE_URL、CURATOR_LLM_MODEL、CURATOR_LLM_API_KEY。
+本地回环服务无需 key；OPENAI_API_KEY 仅自动用于 api.openai.com。不要提交真实凭据。
+示例配置见 [examples/llm-config.toml](examples/llm-config.toml)。
+
+```sh
+uv run curator review examples/review --llm --json
+uv run curator review examples/review --llm --no-cache --json
+uv run curator review examples/review --llm --write-cache --apply --yes --json
+uv run curator rename examples --source llm --json
+```
+
+默认 HTTP 总期限 60 秒、最多 3 次重试、并发 4、64 个复核任务、2000 输入预算。
+只发送有限片段，不发送完整源文件；过短或预算不足时保留规则结果。
+默认不写缓存；显式缓存写入有日志，不计入用户文件 undo 历史。
+LLM 确认、未确认和失败都可审计，补丁从不自动应用。
+没有通过真实付费模型测试；本阶段验证使用本地模拟兼容服务。

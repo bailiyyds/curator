@@ -78,7 +78,13 @@ def move_no_replace(src: Path, dst: Path) -> None:
 class Journal:
     """Append every intent before mutation and every outcome after mutation."""
 
-    def __init__(self, root: Path, plan: Plan | None = None, undo_of: str | None = None) -> None:
+    def __init__(
+        self,
+        root: Path,
+        plan: Plan | None = None,
+        undo_of: str | None = None,
+        kind: str = "transaction",
+    ) -> None:
         """Create an exclusive journal inside a validated private state directory."""
         folder = safe_path(root, ".curator/journal", internal=True)
         folder.mkdir(exist_ok=True)
@@ -87,6 +93,7 @@ class Journal:
         self._append(
             {
                 "type": "header",
+                "kind": kind,
                 "root": str(root),
                 "created_at": datetime.now(UTC).isoformat(),
                 "plan": plan.model_dump(mode="json") if plan else None,

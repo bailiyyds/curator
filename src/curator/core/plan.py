@@ -30,6 +30,7 @@ def rename_plan(
     source: str = "title",
     threshold: float = 0.7,
     config: Config | None = None,
+    llm_titles: dict[str, tuple[str, float]] | None = None,
 ) -> Plan:
     """Choose titles in priority order and reserve casefolded destination names."""
     if source not in {"title", "frontmatter", "llm"}:
@@ -48,8 +49,8 @@ def rename_plan(
     }
     changes: list[Change] = []
     warnings = [f"{s.path}: {s.reason}" for s in inventory.skipped]
-    if source == "llm":
-        warnings.append("LLM titles are unavailable until stage six; using deterministic fallbacks")
+    if source == "llm" and llm_titles is None:
+        warnings.append("LLM titles were not supplied; using deterministic fallbacks")
     for entry in inventory.files:
         if entry.error:
             warnings.append(f"{entry.path}: {entry.error}")
@@ -67,6 +68,9 @@ def rename_plan(
             if not isinstance(title, str) or not title.strip():
                 title = next((h.text for h in doc.headings if h.level == 1), None)
                 confidence, reason = 0.9, "first level-one heading"
+        if (not isinstance(title, str) or not title) and llm_titles and entry.path in llm_titles:
+            title, confidence = llm_titles[entry.path]
+            reason = "LLM title suggestion; review before applying"
         if not isinstance(title, str) or not title:
             title = Path(entry.path).stem
             confidence, reason = 0.5, "cleaned original filename; no reliable title"
@@ -99,7 +103,11 @@ def rename_plan(
                 dst=dst,
                 reason=reason,
                 confidence=confidence,
-                risk="high" if confidence < threshold else "low",
+                risk="high"
+                if confidence < threshold
+                else "medium"
+                if reason.startswith("LLM")
+                else "low",
                 pre_sha256=entry.sha256,
             )
         )

@@ -21,6 +21,8 @@ class Finding(BaseModel):
     suggestion: str | None = None
     patch: str | None = None
     source: Literal["rule", "llm"] = "rule"
+    llm_confirmed: bool | None = None
+    llm_reason: str | None = None
     merged_rules: list[str] = Field(default_factory=list)
 
 
@@ -34,4 +36,5 @@ class ReviewReport(BaseModel):
     warnings: list[str]
     rule_counts: dict[str, int]
     marker_counts: dict[str, int]
+    llm_stats: dict[str, int] = Field(default_factory=dict)
     errors: list[SkippedItem] = Field(default_factory=list)
