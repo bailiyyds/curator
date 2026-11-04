@@ -23,6 +23,6 @@
 - 外部链接拒绝：测试因当前 Windows 无创建链接权限而跳过，未验收。
 
 ## 限制与下一步
-- 依赖通过 uv 解析并生成锁文件，但网络下载缓慢，完整 uv sync 尚在进行。
-- 本次 pytest 使用 Python 3.12 和单独下载的测试工具，coverage 使用 Python tracer。
-- 阶段二至八未实现；阶段一确认后进入文档抽取。
+- uv sync 已完成；Python 3.12 虚拟环境内 pytest、mypy、ruff、CLI 手动验证均通过。
+- 最终 pytest 在 uv 创建的虚拟环境运行，9 passed、1 skipped、覆盖率 89%。
+- uv build 已成功生成 wheel 和源码包。阶段二至八未实现；阶段一确认后进入文档抽取。

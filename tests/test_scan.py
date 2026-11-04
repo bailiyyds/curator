@@ -53,7 +53,7 @@ def test_cli(tmp_path: Path) -> None:
     from curator.cli import app, parse_size
 
     (tmp_path / "a.md").write_text("Hello")
-    result = CliRunner().invoke(app, [str(tmp_path), "--json"])
+    result = CliRunner().invoke(app, ["scan", str(tmp_path), "--json"])
     assert result.exit_code == 0, result.output
     assert len(json.loads(result.stdout)["files"]) == 1
     assert parse_size("1KB") == 1024
@@ -114,12 +114,12 @@ def test_cli_errors_and_summary(tmp_path: Path) -> None:
     from curator.cli import app
 
     runner = CliRunner()
-    assert runner.invoke(app, [str(tmp_path)]).exit_code == 0
-    result = runner.invoke(app, [str(tmp_path / "absent"), "--json"])
+    assert runner.invoke(app, ["scan", str(tmp_path)]).exit_code == 0
+    result = runner.invoke(app, ["scan", str(tmp_path / "absent"), "--json"])
     assert result.exit_code == 1
     assert "error" in result.stdout
-    assert runner.invoke(app, [str(tmp_path), "--max-size", "bad"]).exit_code == 1
-    assert runner.invoke(app, [str(tmp_path), "--follow-symlinks"]).exit_code == 1
+    assert runner.invoke(app, ["scan", str(tmp_path), "--max-size", "bad"]).exit_code == 1
+    assert runner.invoke(app, ["scan", str(tmp_path), "--follow-symlinks"]).exit_code == 1
 
 
 def test_kinds(tmp_path: Path) -> None:

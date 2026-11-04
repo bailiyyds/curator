@@ -13,6 +13,11 @@ app = typer.Typer(no_args_is_help=True)
 console = Console()
 
 
+@app.callback()
+def main() -> None:
+    """Curate local files with explicit, safe commands."""
+
+
 def parse_size(value: str) -> int:
     """Convert a byte budget with an optional KB, MB, or GB suffix."""
     text = value.upper().strip()
