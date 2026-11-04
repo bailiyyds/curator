@@ -1,6 +1,6 @@
 # curator
 
-本地文档与代码策展 CLI，按阶段开发。当前完成阶段一至六；阶段七至八尚未实现，不能视为完整产品。
+本地文档与代码策展 CLI，按阶段开发。当前完成阶段一至七；阶段八尚未实现，不能视为完整产品。
 
 ## 开发
 
@@ -39,7 +39,9 @@ uv build
 
 阶段六：兼容 HTTP provider、严格复核、缓存与标题建议已实现，126 项测试通过、1 项跳过，覆盖率约 92%。详见 [阶段六记录](STAGE-6.md)。
 
-完整跨平台安全验证及阶段七至八仍待完成。
+阶段七：AST 与 Git 文档生成已实现，148 项测试通过、1 项跳过，覆盖率 92%。详见 [阶段七记录](STAGE-7.md)。
+
+完整跨平台安全验证及阶段八检索、去重与最终验收仍待完成。
 
 
 ## 重命名与恢复
@@ -110,3 +112,20 @@ uv run curator rename examples --source llm --json
 默认不写缓存；显式缓存写入有日志，不计入用户文件 undo 历史。
 LLM 确认、未确认和失败都可审计，补丁从不自动应用。
 没有通过真实付费模型测试；本阶段验证使用本地模拟兼容服务。
+
+
+## 从代码与历史生成文档
+
+```sh
+uv run curator doc examples/docgen --from ast
+uv run curator doc examples/docgen --from both --split module --json
+uv run curator doc examples/docgen --from git --split file
+uv run curator doc examples/docgen --from both --out docs --apply --yes
+uv run curator undo examples/docgen --last 1 --apply --yes
+```
+
+默认只读，JSON 可查看完整内容；--apply 才写入，--yes 免交互确认。
+模块页包含目录、签名、参数、装饰器、文档字符串、直接文本调用目标与 Git 活动。
+已有文档保持不变，变化内容写到 .generated.md 并展示 unified diff；相同生成结果跳过。
+多文件写入属于一个日志事务，一次 undo 即可撤销本批输出。
+Git 不可用时明确降级为 AST；读取历史时禁用外部 diff/textconv、分页和按需取对象。

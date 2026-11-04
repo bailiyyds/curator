@@ -143,3 +143,7 @@ register(app, console)
 from curator.cli.review import register_review
 
 register_review(app, console)
+
+from curator.cli.doc import register_doc
+
+register_doc(app, console)

@@ -17,6 +17,9 @@ class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
     llm: ProviderConfig = Field(default_factory=ProviderConfig)
     follow_symlinks: bool = False
+    doc_git_max_commits: int = Field(default=200, ge=1, le=10000)
+    doc_git_timeout: float = Field(default=10, gt=0, le=60)
+    doc_git_max_bytes: int = Field(default=8 * 1024 * 1024, ge=1024, le=64 * 1024 * 1024)
     max_size: int = Field(default=50 * 1024 * 1024, ge=1)
     max_files: int = Field(default=100000, ge=1)
     max_topic_documents: int = Field(default=1024, ge=1)
