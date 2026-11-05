@@ -1,0 +1,35 @@
+{
+  "commands": [
+    {
+      "command": "curator scan examples --json",
+      "exit_code": 0,
+      "valid_json": true
+    },
+    {
+      "command": "curator review examples/review --no-llm --severity info+ --json",
+      "exit_code": 0,
+      "valid_json": true
+    },
+    {
+      "command": "curator doc examples/docgen --from ast --json",
+      "exit_code": 0,
+      "valid_json": true
+    },
+    {
+      "command": "curator search curator examples --json",
+      "exit_code": 0,
+      "valid_json": true
+    },
+    {
+      "command": "curator duplicates examples --json",
+      "exit_code": 0,
+      "valid_json": true
+    },
+    {
+      "command": "curator config init --json",
+      "exit_code": 0,
+      "valid_json": true
+    }
+  ],
+  "wheel_packaged_templates_verified": true
+}

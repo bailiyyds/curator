@@ -1,7 +1,7 @@
 [project]
 name = "curator-local"
 version = "0.1.0"
-description = "Read-only local document and code inventory"
+description = "Local document and code curation with safe plans, recovery, review and search"
 requires-python = ">=3.12"
 dependencies = [
     "typer>=0.12",
@@ -21,6 +21,9 @@ dependencies = [
     "portalocker>=3,<4",
     "httpx>=0.28,<0.29",
 ]
+[project.optional-dependencies]
+semantic = ["sentence-transformers>=3,<6"]
+
 [project.scripts]
 curator = "curator.cli:app"
 [build-system]

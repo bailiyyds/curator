@@ -1,5 +1,6 @@
 """CLI parameter parsing and presentation."""
 
+import logging
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -14,8 +15,12 @@ console = Console()
 
 
 @app.callback()
-def main() -> None:
+def main(verbose: bool = False) -> None:
     """Curate local files with explicit, safe commands."""
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.WARNING,
+        format="%(levelname)s %(name)s: %(message)s",
+    )
 
 
 def parse_size(value: str) -> int:
@@ -147,3 +152,7 @@ register_review(app, console)
 from curator.cli.doc import register_doc
 
 register_doc(app, console)
+
+from curator.cli.library import register_library
+
+register_library(app, console)

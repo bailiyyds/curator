@@ -1,6 +1,7 @@
 """Bounded, read-only filesystem inventory."""
 
 import hashlib
+import logging
 from datetime import UTC, datetime
 from fnmatch import fnmatch
 from pathlib import Path
@@ -25,7 +26,10 @@ def scan(root: Path, config: Config | None = None) -> Inventory:
     files: list[FileEntry] = []
     skipped: list[SkippedItem] = []
 
+    logger = logging.getLogger(__name__)
+
     def skip(path: Path, reason: str) -> None:
+        logger.debug("Skipped %s: %s", path.relative_to(root).as_posix(), reason)
         skipped.append(SkippedItem(path=path.relative_to(root).as_posix(), reason=reason))
 
     stack = [(root, 0)]
@@ -95,13 +99,18 @@ def scan(root: Path, config: Config | None = None) -> Inventory:
                     item.kind = "image"
                 elif ext in {".txt", ".csv", ".json", ".toml", ".yaml"}:
                     item.kind = "text"
+                logger.debug("Scanned %s (%d bytes)", rel, item.size)
                 files.append(item)
             except OSError as error:
+                logger.error("Failed reading %s: %s", rel, error)
                 files.append(
                     FileEntry(
                         path=rel, size=0, mtime=0, sha256="", kind="unknown", error=str(error)
                     )
                 )
+    logger.info("Scanned %d files; skipped %d", len(files), len(skipped))
+    if skipped:
+        logger.warning("Skipped %d paths; reasons are included in the inventory", len(skipped))
     return Inventory(
         root=str(root),
         created_at=datetime.fromtimestamp(max((f.mtime for f in files), default=0), UTC),

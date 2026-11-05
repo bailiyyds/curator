@@ -28,7 +28,7 @@ def validate_title(content: str) -> None:
 
 
 async def suggest_titles(
-    root: Path, provider: Provider, config: Config
+    root: Path, provider: Provider, config: Config, *, languages: list[str] | None = None
 ) -> tuple[dict[str, tuple[str, float]], list[str]]:
     """Send bounded partial document excerpts only when a reliable local title is absent."""
     unavailable = provider.unavailable()
@@ -59,7 +59,12 @@ async def suggest_titles(
         prompt = ""
         while length >= 4:
             prompt = json.dumps(
-                {"path": entry.path[:180], "partial_excerpt": True, "text": doc.body[:length]},
+                {
+                    "path": entry.path[:180],
+                    "partial_excerpt": True,
+                    "text": doc.body[:length],
+                    "preferred_languages": languages or ["zh", "en"],
+                },
                 ensure_ascii=False,
             )
             if len(system.encode()) + len(prompt.encode()) + 128 <= provider.config.input_tokens:

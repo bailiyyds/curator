@@ -1,0 +1,22 @@
+{
+  "mixed_files": 1000,
+  "elapsed_seconds": 1.0698741999804042,
+  "peak_process_working_set_bytes": 41857024,
+  "kind_counts": {
+    "code": 167,
+    "binary": 166,
+    "pdf": 167,
+    "markdown": 167,
+    "image": 166,
+    "text": 167
+  },
+  "junction_skipped": [
+    {
+      "path": "escape",
+      "reason": "Symbolic links and junctions are not followed"
+    }
+  ],
+  "junction_write_rejected": true,
+  "outside_unchanged": true,
+  "platform": "win32"
+}

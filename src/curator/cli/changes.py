@@ -81,6 +81,7 @@ def register(app: typer.Typer, console: Console) -> None:
         path: Path,
         template: str = "{slug}",
         source: str = "title",
+        lang: str = "zh,en",
         threshold: Annotated[float, typer.Option(min=0, max=1)] = 0.7,
         apply: bool = typer.Option(False, "--apply/--dry-run"),
         yes: bool = False,
@@ -91,6 +92,9 @@ def register(app: typer.Typer, console: Console) -> None:
     ) -> None:
         """Preview renames; --apply requires confirmation unless --yes is supplied."""
         try:
+            languages = [value.strip().lower() for value in lang.split(",") if value.strip()]
+            if not languages or any(value not in {"zh", "en"} for value in languages):
+                raise ValueError("Rename --lang accepts zh,en preferences")
             config = load_config(path.resolve())
             titles = None
             title_warnings: list[str] = []
@@ -108,7 +112,7 @@ def register(app: typer.Typer, console: Console) -> None:
                     path.resolve(),
                 )
                 titles, title_warnings = asyncio.run(
-                    suggest_titles(path.resolve(), provider, config)
+                    suggest_titles(path.resolve(), provider, config, languages=languages)
                 )
             plan = rename_plan(
                 path,
